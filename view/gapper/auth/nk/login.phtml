@@ -1,0 +1,33 @@
+<div class="modal fade">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal"><span aria-hidden="true">&times;</span></button>
+                <h4 class="modal-title"><?=H(T('登录'))?></h4>
+            </div>
+            <form class="modal-body form gapper-auth-form gapper-auth-login-form" method="POST" action="ajax/gapper/auth/nk/login"><dl class="dl-horizontal">
+                <dt class="text-center">
+                    <div class="app-icon">
+                        <div class="text-center app-icon-image"><img src="<?=H($icon)?>" /></div>
+                        <div class="text-center app-icon-title"><?=H($type)?></div>
+                    </div>
+                </dt>
+                <dd>
+                    <div class="gapper-auth-login-form-li form-group">
+                        <div class="gapper-auth-login-form-placeholder" style="display:none; display/*\**/:block\9;"><?=H(T('卡号:'))?></div>
+                        <input class="form-control" type="text" name="username" placeholder="<?=H(T('卡号'))?>" />
+                    </div>
+                    <div class="gapper-auth-login-form-li form-group">
+                        <div class="gapper-auth-login-form-placeholder" style="display:none; display/*\**/:block\9;"><?=H(T('密码:'))?></div>
+                        <input class="form-control" type="password" name="password" placeholder="<?=H(T('密码'))?>" />
+                        <div class="auth-login-form-password-forgot">忘记密码</div>
+                    </div>
+                    <div class="gapper-auth-login-form-li form-group">
+                        <input class="form-control btn btn-primary" type="submit" value="<?=H(T('登录'))?>"/>
+                    </div>
+                </dd>
+            </dl></form>
+        </div>
+    </div>
+</div>
+
