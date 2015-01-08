@@ -1,0 +1,17 @@
+---
+backends:
+    ids.nankai.edu.cn:
+        title: 一卡通用户
+        driver: ldap
+        # token_base 配置
+        token_base: dc=nankai,dc=edu,dc=cn
+        # token_attr 配置
+        token_attr: uid
+        options:
+            # ldap://DOMAIN
+            host: ?
+            root_dn: ?
+            root_pass: ?
+            pass_algo: ?
+            server_type: ads
+...

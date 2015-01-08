@@ -1,6 +1,11 @@
 ---
 auth:
     NK: 
-        icon: http://gravatar.com/avatar/19e1f4e7add200a14d93415f977426ee.jpg?s=64&_=1407383781
+        icon: /assets/img/gapper-auth-nk/logo.png
         name: 南开一卡通
+        wiscom:
+            username: USERNAME
+            password: PASSWORD
+            tnsnames: TNSNAMES
+            character: CHARACTER
 ...
