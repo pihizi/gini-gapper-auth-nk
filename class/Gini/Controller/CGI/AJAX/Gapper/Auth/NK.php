@@ -13,6 +13,9 @@ class NK extends \Gini\Controller\CGI
 {
     use \Gini\Module\Gapper\Client\RPCTrait;
     use \Gini\Module\Gapper\Client\CGITrait;
+    use \Gini\Module\Gapper\Client\LoggerTrait;
+
+    private $identitySource = 'nankai';
 
     private function _getConfig()
     {
@@ -21,7 +24,12 @@ class NK extends \Gini\Controller\CGI
         return $info;
     }
 
-    /** TODO
+    private function _makeUserName($username)
+    {
+        return \Gini\Auth::makeUserName($username, 'ids.nankai.edu.cn');
+    }
+
+    /** 
         * @brief 一卡通密码验证
         *
         * @param $username
@@ -31,24 +39,41 @@ class NK extends \Gini\Controller\CGI
      */
     private function _verify($username, $password)
     {
-        return true;
+        $token = $this->_makeUserName($username);
+        $auth = \Gini\IoC::construct('\Gini\Auth', $token);
+        if ($auth->verify($password)) {
+            return true;
+        }
+        return false;
     }
 
-    /** TODO
+    /** 
         * @brief 一卡通用户信息获取
         *
-        * @param $username
-        * @param $password
+        * @param $username 一卡通卡号
         *
         * @return (object)
      */
-    private static function _getUserInfo($username, $password)
+    private static function _getWiscomInfo($username)
     {
+        $config = $this->_getConfig();
+        $config = $config['wiscom'];
+
+        $handler = \Gini\IoC::construct('\Gini\Gapper\Auth\NK\Wiscom\Teacher', $config['username'], $config['password'], $config['tnsnames'], $config['character']);
+
+        $info = $handler->getInfo($username);
+
+        if (empty($info)) return;
+
         return (object)[
-            'isTeacher'=> true,
-            'email'=> 'test@test.com',
-            'password'=> '123456',
-            'name'=> 'NAME',
+            'id'=> $info['uid'],
+            'name'=> $info['name'],
+            'ref_no'=> $info['ref_no'],
+            'org_code'=> $info['org_code'],
+            'org_name'=> $info['org_name'],
+            'id_card_no'=> $info['id_card_no'],
+            'phone'=> $info['phone'],
+            'email'=> $info['email']
         ];
     }
 
@@ -163,11 +188,22 @@ class NK extends \Gini\Controller\CGI
             ]));
         }
 
-        // 如果以username已经存在，直接报错
-        // 其实不应该出现这个问题，如果出现，应该是用户自己在捣鬼
-        $info = self::getRPC()->user->getInfo($username);
-        if ($info['id']) {
+        // 验证用户一卡通和密码是否匹配
+        // 如果不匹配，应该是用户自己不怀好意的改了
+        if (!$this->_verify($username, $password)) {
             return $this->showJSON(T('用户激活失败, 请重试!'));
+        }
+
+        // 如果不是老师，不能再登录阶段激活
+        $info = self::_getWiscomInfo($username);
+        if (!$info) {
+            return $this->showJSON(T('用户激活失败, 请重试!'));
+        }
+
+        // 如果一卡通已经绑定了gapper用户，直接提示激活成功，让用户尝试登录
+        $info = self::getRPC()->user->getUserByIdentity(self::$identitySource, $username);
+        if ($info['id']) {
+            return $this->showJSON(T('用户激活成功, 请继续登录!'));
         }
 
         // 如果以email为账号的用户已经存在，直接报错
@@ -190,20 +226,9 @@ class NK extends \Gini\Controller\CGI
             ]));
         }
 
-        // 验证用户一卡通和密码是否匹配
-        // 如果不匹配，应该是用户自己不怀好意的改了
-        if (!$this->_verify($username, $password)) {
-            return $this->showJSON(T('用户激活失败, 请重试!'));
-        }
-
-        $info = self::_getUserInfo($username, $password);
-        if (!$info || !$info->isTeacher) {
-            return $this->showJSON(T('用户激活失败, 请重试!'));
-        }
-
-        // 注册gapper用户
+        // 注册gapper用户, 以Email为用户名
         $uid = self::getRPC()->user->registerUser([
-            'username'=> $username,
+            'username'=> $email,
             'password'=> $password,
             'name'=> $name,
             'email'=> $email
@@ -211,6 +236,14 @@ class NK extends \Gini\Controller\CGI
 
         if (!$uid) {
             return $this->showJSON(T('用户激活失败, 请重试!'));
+        }
+
+        // 绑定identity
+        // 绑定失败，导致email被占用，如果用户想在以这个email激活，将直接报错
+        // 所以，需要联系网站客服
+        $bool = self::getRPC()->user->linkIdentity((int)$uid, self::$identitySource, $username);
+        if (!$bool) {
+            return $this->showJSON(T('用户激活失败, 请联系网站客服!'));
         }
 
         // 创建分组
@@ -227,13 +260,12 @@ class NK extends \Gini\Controller\CGI
         // 为新建分组开启当前APP的访问权限
         $config = \Gini\Config::get('gapper.rpc');
         $bool = self::getRPC()->app->installTo($config['client_id'], 'group', (int)$gid);
-        // TODO 应该不会失败，如果失败怎么办？
         if (!$bool) {
             return $this->showJSON(T('用户激活成功，但是暂时无法访问该网站，请联系网站客服解决问题.'));
         }
 
         // 创建成功，直接以新建用户和组登录app
-        $bool = $this->_autoLogin($username, $gid);
+        $bool = $this->_autoLogin($email, $gid);
 
         if (!$bool) return $this->showJSON(T('用户激活成功, 请继续登录!'));
 
@@ -251,16 +283,12 @@ class NK extends \Gini\Controller\CGI
     private function _showActiveME($username, $password)
     {
         // 获取一卡通用户信息
-        $info = self::_getUserInfo($username, $password);
+        // 只有老师才能在注册测时候激活，学生需要由老师添加账号
+        $info = self::_getWiscomInfo($username);
         if (!$info) {
-            return $this->showJSON(T('获取用户信息失败, 暂时无法激活. 请重试!'));
+            return $this->showJSON(T('请联系课题组管理员将您加入相应分组.'));
         }
         
-        // 只有老师才能在注册测时候激活，学生需要由老师添加账号
-        if (!$info->isTeacher) {
-            return $this->showJSON(T('请联系课题组管理员将您加入相应分组.'));
-        } 
-
         $config = $this->_getConfig();
 
         return $this->_showActiveDialog([
@@ -268,6 +296,8 @@ class NK extends \Gini\Controller\CGI
             'password'=> $password,
             'name'=> $info->name,
             'email'=> $info->email,
+            'group'=> $info->org_no,
+            'title'=> $info->org_name,
             'icon'=> $config->icon,
             'type'=> $config->name
         ]);
@@ -300,13 +330,13 @@ class NK extends \Gini\Controller\CGI
 
         // 以一卡通号获取gapper用户信息
         // 获取不到表示用户在gapper不存在，需要激活，展示激活表单
-        $info = self::getRPC()->user->getInfo($username);
+        $info = self::getRPC()->user->getUserByIdentity(self::$identitySource, $username);
         if (!$info || !$info['id']) {
             return $this->_showActiveME($username, $password);
         }
 
         // 用户已经存在，正常登录
-        $result = \Gini\Gapper\Client::loginByUserName($username);
+        $result = \Gini\Gapper\Client::loginByUserName($info['username']);
         if ($result) {
             return $this->showJSON(true);
         }
@@ -324,7 +354,7 @@ class NK extends \Gini\Controller\CGI
         $config = $this->_getConfig();
         return $this->showHTML('gapper/auth/nk/login', [
             'icon'=> $config->icon,
-            'type'=> $config->type
+            'type'=> $config->name
         ]);
     }
 }

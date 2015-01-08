@@ -4,6 +4,7 @@
     "description": "Gapper Login UI",
     "version": "0.1.0",
     "dependencies": {
-        "gini": ">=0.5.0"
+        "gini": ">=0.5.0",
+        "auth": "*"
     }
 }
