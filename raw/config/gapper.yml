@@ -1,11 +1,12 @@
 ---
 auth:
-    NK: 
-        icon: /assets/img/gapper-auth-nk/logo.png
-        name: 南开一卡通
-        wiscom:
-            username: USERNAME
-            password: PASSWORD
-            tnsnames: TNSNAMES
-            character: CHARACTER
+  NK:
+    icon: /assets/img/gapper-auth-nk/logo.png
+    name: 南开一卡通
+    wiscom:
+      username: USERNAME
+      password: PASSWORD
+      tnsnames: TNSNAMES
+      character: CHARACTER
 ...
+
